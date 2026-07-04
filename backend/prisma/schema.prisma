@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Article {
+  id              String    @id @default(uuid())
+  title           String
+  url             String    @unique
+  sourceName      String
+  sourceId        String
+  source          Source    @relation(fields: [sourceId], references: [id])
+  description     String?
+  contentSnippet  String?
+  publishedAt     DateTime?
+  fetchedAt       DateTime  @default(now())
+  contentHash     String?
+  summary         Summary?
+  digestItems     DigestItem[]
+
+  @@index([sourceId])
+  @@index([publishedAt])
+  @@index([contentHash])
+}
+
+model Summary {
+  id              String   @id @default(uuid())
+  articleId       String   @unique
+  article         Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  summary         String
+  category        String
+  importanceScore Int
+  whyItMatters    String
+  keyTakeaway     String
+  isClickbait     Boolean  @default(false)
+  verified        Boolean  @default(false)
+  verificationNote String?
+  createdAt       DateTime @default(now())
+
+  @@index([category])
+  @@index([importanceScore])
+}
+
+model Digest {
+  id              String       @id @default(uuid())
+  date            DateTime     @default(now())
+  title           String
+  message         String       @db.Text
+  topFiveMessage  String?      @db.Text
+  trendingTopics  String[]
+  stats           Json
+  sentAt          DateTime?
+  sendStatus      SendStatus   @default(PENDING)
+  sendError       String?
+  triggeredBy     TriggerType  @default(SCHEDULED)
+  items           DigestItem[]
+
+  @@index([date])
+  @@index([sendStatus])
+}
+
+model DigestItem {
+  id        String  @id @default(uuid())
+  digestId  String
+  digest    Digest  @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id])
+  rank      Int
+
+  @@unique([digestId, articleId])
+  @@index([digestId])
+}
+
+model Source {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  slug        String    @unique
+  type        SourceType
+  url         String
+  enabled     Boolean   @default(true)
+  lastFetched DateTime?
+  fetchCount  Int       @default(0)
+  errorCount  Int       @default(0)
+  lastError   String?
+  articles    Article[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ScheduleSettings {
+  id        String   @id @default("default")
+  cronExpr  String   @default("0 8 * * *")
+  timezone  String   @default("Asia/Kolkata")
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+model AppLog {
+  id        String   @id @default(uuid())
+  level     LogLevel
+  message   String
+  context   Json?
+  createdAt DateTime @default(now())
+
+  @@index([level])
+  @@index([createdAt])
+}
+
+model CacheEntry {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+enum SendStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum TriggerType {
+  SCHEDULED
+  MANUAL
+}
+
+enum SourceType {
+  RSS
+  API
+  SCRAPE
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+  DEBUG
+}
